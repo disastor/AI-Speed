@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+junit.xml
+subset.txt
+.smart_tests_session.txt
