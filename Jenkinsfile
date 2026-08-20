@@ -20,9 +20,6 @@ pipeline {
         BUILD_NAME = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
     }
 
-    options {
-        timestamps()
-    }
 
     stages {
 
