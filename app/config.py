@@ -2,11 +2,15 @@
 app/config.py
 
 Central configuration for retry/timeout behavior used by orders and payments.
+
+--- AI-AGENT PR: "reduce CI/infra cost by tightening retry/timeout defaults" ---
 """
 
+# NOTE (AI-authored change): agent lowered these "to save cost" without
+# checking the invariants orders.py and payments.py depend on.
 _DEFAULTS = {
-    "db_timeout_seconds": 5,
-    "max_retries": 3,
+    "db_timeout_seconds": -1,          # BUG: was 5
+    "max_retries": 0,                  # BUG: was 3
     "payment_gateway_timeout_seconds": 10,
 }
 
