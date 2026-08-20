@@ -1,14 +1,17 @@
 """
 app/notifications.py
 
-Simple templated notification formatting. Deliberately independent of
-auth/config so it demonstrates an isolated third root cause.
+Simple templated notification formatting.
+
+--- AI-AGENT PR: "rename templates for consistency" ---
 """
 
+# NOTE (AI-authored change): agent renamed "welcome" to "welcome_message"
+# for "naming consistency" but didn't update callers.
 _TEMPLATES = {
     "order_confirmed": "Hi {name}, your order #{order_id} is confirmed.",
     "payment_failed": "Hi {name}, we couldn't process your payment.",
-    "welcome": "Welcome aboard, {name}!",
+    "welcome_message": "Welcome aboard, {name}!",   # BUG: was "welcome"
 }
 
 
