@@ -57,6 +57,21 @@ pipeline {
             }
         }
 
+        stage('Ensure Python3') {
+            steps {
+                sh '''
+                    if ! command -v python3 >/dev/null 2>&1; then
+                        echo "python3 not found on this agent, attempting to install..."
+                        (apt-get update && apt-get install -y python3 python3-venv python3-pip) || \
+                        (apk add --no-cache python3 py3-pip) || \
+                        (yum install -y python3) || \
+                        echo "WARNING: could not auto-install python3 - see Option B (pod template) instead"
+                    fi
+                    python3 --version
+                '''
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 sh '''
