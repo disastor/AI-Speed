@@ -11,13 +11,19 @@
 // cause instead of read one-by-one.
 //
 // NOTE ON AGENTS: this controller's "default" pod template has git but no
-// Python and no package manager. Rather than spin up a second, separate
-// pod for Python (which caused workspace-ownership/permission conflicts
-// between the two pods), this Jenkinsfile inherits the existing "default"
-// template and adds a python container alongside it — one pod, one shared
-// workspace, no stash/unstash needed. Checkout/gate steps run in the
-// default container (unwrapped); Python/Smart Tests steps are wrapped in
-// container('python').
+// Python and no package manager. Rather than a second, separate pod (which
+// caused workspace-ownership/permission conflicts), this Jenkinsfile
+// inherits the existing "default" template and adds a python container
+// alongside it — one pod, one shared workspace. Checkout/gate steps run in
+// the default container (unwrapped); Python/Smart Tests steps are wrapped
+// in container('python').
+//
+// NOTE ON THE SMART TESTS CLI: the installable PyPI package is named
+// smart-tests-cli (the CLI binary it installs is called smart-tests).
+// The pytest subset workflow requires generating a test list via
+// `pytest --collect-only -q` first, then piping that into
+// `smart-tests subset pytest` — see:
+// https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/send-data-to-smart-tests/subset/subset-with-the-smart-tests-cli
 
 pipeline {
     agent {
@@ -90,8 +96,10 @@ spec:
                         pip install --upgrade pip
                         pip install -r requirements.txt
 
-                        # CloudBees Smart Tests CLI (Python package)
-                        pip install --upgrade smart-tests
+                        # CloudBees Smart Tests CLI — package name is
+                        # smart-tests-cli; the executable it installs is
+                        # called smart-tests.
+                        pip install --upgrade smart-tests-cli
                     '''
                 }
             }
@@ -106,8 +114,7 @@ spec:
 
                         smart-tests record build \
                             --build "${BUILD_NAME}" \
-                            --branch "${BRANCH_NAME}" \
-                            --source .
+                            --source repo=.
 
                         smart-tests record session \
                             --build "${BUILD_NAME}" \
@@ -125,10 +132,14 @@ spec:
                         . .venv/bin/activate
                         SESSION=$(cat .smart_tests_session.txt)
 
-                        smart-tests subset pytest \
+                        # Generate the full test list pytest would normally
+                        # run, without running it.
+                        pytest --collect-only -q tests/ > test_list.txt
+
+                        # Pipe that list in to get back a subset.
+                        cat test_list.txt | smart-tests subset pytest \
                             --session "${SESSION}" \
-                            --confidence 90% \
-                            tests/ > subset.txt
+                            --confidence 90% > subset.txt
 
                         echo "Selected subset:"
                         cat subset.txt
@@ -146,15 +157,16 @@ spec:
 
                         if [ "${BRANCH_NAME}" = "nightly" ]; then
                             echo "Nightly build — running full suite."
-                            python3 -m pytest tests/ --junitxml=junit.xml || true
+                            python3 -m pytest tests/ --junit-xml=junit.xml || true
                         else
                             echo "Feature branch — running predictive subset."
-                            python3 -m pytest $(cat subset.txt | tr '\\n' ' ') --junitxml=junit.xml || true
+                            python3 -m pytest --junit-xml=junit.xml $(cat subset.txt) || true
                         fi
 
-                        smart-tests record tests pytest \
+                        smart-tests record tests \
+                            --build "${BUILD_NAME}" \
                             --session "${SESSION}" \
-                            junit.xml
+                            pytest junit.xml
                     '''
                 }
                 junit allowEmptyResults: true, testResults: 'junit.xml'
