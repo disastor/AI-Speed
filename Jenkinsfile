@@ -47,7 +47,7 @@ spec:
         // Set this as a Jenkins credential (Secret text) named
         // smart-tests-token pointing at your CloudBees Smart Tests API key.
         SMART_TESTS_TOKEN = credentials('smart-tests-token')
-        BUILD_NAME = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
+        BUILD_NAME = "${env.JOB_NAME.replace('/', '-')}-${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -91,6 +91,9 @@ spec:
             steps {
                 container('python') {
                     sh '''
+                        apt-get update && apt-get install -y --no-install-recommends default-jre-headless
+                        rm -rf /var/lib/apt/lists/*
+
                         python3 -m venv .venv
                         . .venv/bin/activate
                         pip install --upgrade pip
