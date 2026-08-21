@@ -47,7 +47,7 @@ spec:
         // Set this as a Jenkins credential (Secret text) named
         // smart-tests-token pointing at your CloudBees Smart Tests API key.
         SMART_TESTS_TOKEN = credentials('smart-tests-token')
-        BUILD_NAME = "${env.JOB_NAME.replace('/', '-')}-${env.BUILD_NUMBER}"
+        BUILD_NAME = "${env.JOB_NAME.replace('/', '-').replace('%2F', '-')}-${env.BUILD_NUMBER}"
     }
 
     stages {
