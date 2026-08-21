@@ -91,7 +91,7 @@ spec:
             steps {
                 container('python') {
                     sh '''
-                        apt-get update && apt-get install -y --no-install-recommends default-jre-headless
+                        apt-get update && apt-get install -y --no-install-recommends default-jre-headless git
                         rm -rf /var/lib/apt/lists/*
 
                         python3 -m venv .venv
