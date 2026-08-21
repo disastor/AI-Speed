@@ -168,7 +168,6 @@ spec:
                         fi
 
                         smart-tests record tests \
-                            --build "${BUILD_NAME}" \
                             --session "${SESSION}" \
                             pytest junit.xml
                     '''
