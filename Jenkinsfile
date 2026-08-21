@@ -9,13 +9,20 @@
 // runs a predictive subset (or full suite on the nightly), and every test
 // result is sent back to Smart Tests so failures can be clustered by root
 // cause instead of read one-by-one.
+//
+// NOTE ON AGENTS: the default pod template on this controller has git but
+// no Python and no package manager (apt/apk/yum all absent). So Checkout
+// and the Governance Gate run on the default agent (agent any), and the
+// Python/Smart Tests work runs in its own container, defined inline below.
+// Since a stage-level `agent` spins up a fresh pod/workspace, we stash the
+// checked-out source after Checkout and unstash it inside that container.
 
 pipeline {
     agent any
 
     environment {
         // Set this as a Jenkins credential (Secret text) named
-        // SMART_TESTS_TOKEN pointing at your CloudBees Smart Tests API key.
+        // smart-tests-token pointing at your CloudBees Smart Tests API key.
         SMART_TESTS_TOKEN = credentials('smart-tests-token')
         BUILD_NAME = "${env.JOB_NAME}-${env.BUILD_NUMBER}"
     }
@@ -26,6 +33,7 @@ pipeline {
             steps {
                 checkout scm
                 sh 'git fetch origin main --depth=50 || true'
+                stash name: 'source', useDefaultExcludes: false
             }
         }
 
@@ -57,96 +65,110 @@ pipeline {
             }
         }
 
-        stage('Ensure Python3') {
-            steps {
-                sh '''
-                    if ! command -v python3 >/dev/null 2>&1; then
-                        echo "python3 not found on this agent, attempting to install..."
-                        (apt-get update && apt-get install -y python3 python3-venv python3-pip) || \
-                        (apk add --no-cache python3 py3-pip) || \
-                        (yum install -y python3) || \
-                        echo "WARNING: could not auto-install python3 - see Option B (pod template) instead"
-                    fi
-                    python3 --version
-                '''
+        stage('Python & Smart Tests') {
+            agent {
+                kubernetes {
+                    yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: python
+    image: python:3.11-slim
+    command:
+    - cat
+    tty: true
+'''
+                }
             }
-        }
+            stages {
 
-        stage('Install Dependencies') {
-            steps {
-                sh '''
-                    python3 -m venv .venv
-                    . .venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt
+                stage('Unstash Source') {
+                    steps {
+                        unstash 'source'
+                    }
+                }
 
-                    # CloudBees Smart Tests CLI (Python package)
-                    pip install --upgrade smart-tests
-                '''
+                stage('Install Dependencies') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                python3 -m venv .venv
+                                . .venv/bin/activate
+                                pip install --upgrade pip
+                                pip install -r requirements.txt
+
+                                # CloudBees Smart Tests CLI (Python package)
+                                pip install --upgrade smart-tests
+                            '''
+                        }
+                    }
+                }
+
+                stage('Smart Tests — Record Build & Session') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                . .venv/bin/activate
+                                smart-tests verify || true
+
+                                smart-tests record build \
+                                    --build "${BUILD_NAME}" \
+                                    --branch "${BRANCH_NAME}" \
+                                    --source .
+
+                                smart-tests record session \
+                                    --build "${BUILD_NAME}" \
+                                    --test-suite "pytest-suite" > .smart_tests_session.txt
+                            '''
+                        }
+                    }
+                }
+
+                stage('Predictive Test Selection') {
+                    when { not { branch 'nightly' } }
+                    steps {
+                        container('python') {
+                            sh '''
+                                . .venv/bin/activate
+                                SESSION=$(cat .smart_tests_session.txt)
+
+                                smart-tests subset pytest \
+                                    --session "${SESSION}" \
+                                    --confidence 90% \
+                                    tests/ > subset.txt
+
+                                echo "Selected subset:"
+                                cat subset.txt
+                            '''
+                        }
+                    }
+                }
+
+                stage('Run Tests') {
+                    steps {
+                        container('python') {
+                            sh '''
+                                . .venv/bin/activate
+                                SESSION=$(cat .smart_tests_session.txt)
+
+                                if [ "${BRANCH_NAME}" = "nightly" ]; then
+                                    echo "Nightly build — running full suite."
+                                    python3 -m pytest tests/ --junitxml=junit.xml || true
+                                else
+                                    echo "Feature branch — running predictive subset."
+                                    python3 -m pytest $(cat subset.txt | tr '\\n' ' ') --junitxml=junit.xml || true
+                                fi
+
+                                smart-tests record tests pytest \
+                                    --session "${SESSION}" \
+                                    junit.xml
+                            '''
+                        }
+                        junit allowEmptyResults: true, testResults: 'junit.xml'
+                    }
+                }
             }
-        }
-
-        stage('Smart Tests — Record Build & Session') {
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    smart-tests verify || true
-
-                    smart-tests record build \
-                        --build "${BUILD_NAME}" \
-                        --branch "${BRANCH_NAME}" \
-                        --source .
-
-                    smart-tests record session \
-                        --build "${BUILD_NAME}" \
-                        --test-suite "pytest-suite" > .smart_tests_session.txt
-                '''
-            }
-        }
-
-        stage('Predictive Test Selection') {
-            when { not { branch 'nightly' } }
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    SESSION=$(cat .smart_tests_session.txt)
-
-                    smart-tests subset pytest \
-                        --session "${SESSION}" \
-                        --confidence 90% \
-                        tests/ > subset.txt
-
-                    echo "Selected subset:"
-                    cat subset.txt
-                '''
-            }
-        }
-
-        stage('Run Tests') {
-            steps {
-                sh '''
-                    . .venv/bin/activate
-                    SESSION=$(cat .smart_tests_session.txt)
-
-                    if [ "${BRANCH_NAME}" = "nightly" ]; then
-                        echo "Nightly build — running full suite."
-                        python3 -m pytest tests/ --junitxml=junit.xml || true
-                    else
-                        echo "Feature branch — running predictive subset."
-                        python3 -m pytest $(cat subset.txt | tr '\\n' ' ') --junitxml=junit.xml || true
-                    fi
-
-                    smart-tests record tests pytest \
-                        --session "${SESSION}" \
-                        junit.xml
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            junit allowEmptyResults: true, testResults: 'junit.xml'
         }
     }
 }
