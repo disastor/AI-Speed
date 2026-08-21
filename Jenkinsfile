@@ -93,6 +93,7 @@ spec:
                     sh '''
                         apt-get update && apt-get install -y --no-install-recommends default-jre-headless git
                         rm -rf /var/lib/apt/lists/*
+                        git config --global --add safe.directory '*'
 
                         python3 -m venv .venv
                         . .venv/bin/activate
