@@ -18,7 +18,7 @@ SENSITIVE_PATTERNS=(
   "^app/payments\.py$"
 )
 
-CHANGED_FILES=$(git diff --name-only "${BASE_REF}...${HEAD_REF}" || true)
+CHANGED_FILES=$(git diff --name-only "${BASE_REF}" "${HEAD_REF}" || true)
 
 echo "Changed files:"
 echo "${CHANGED_FILES}"
