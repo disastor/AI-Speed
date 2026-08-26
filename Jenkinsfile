@@ -55,7 +55,7 @@ spec:
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'git fetch origin main --depth=50 || true'
+                sh 'git fetch origin main:refs/remotes/origin/main --depth=50 || true'
             }
         }
 
