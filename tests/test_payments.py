@@ -60,6 +60,7 @@ def test_refund_preserves_amount():
     assert result["amount_cents"] == 750
 
 
+@pytest.mark.slow
 def test_charge_large_amount():
     result = payments.charge(_token(), 1_000_000)
     assert result["amount_cents"] == 1_000_000
