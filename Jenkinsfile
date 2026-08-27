@@ -65,7 +65,7 @@ spec:
         // instead of asking the room to trust the subset on faith. When
         // "false" (default), feature branches genuinely run only the
         // subset for the literal wall-clock speed demonstration instead.
-        SMART_TESTS_OBSERVATION_MODE = "false"
+        SMART_TESTS_OBSERVATION_MODE = "true"
     }
 
     stages {
