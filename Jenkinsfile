@@ -48,6 +48,14 @@ spec:
         // smart-tests-token pointing at your CloudBees Smart Tests API key.
         SMART_TESTS_TOKEN = credentials('smart-tests-token')
         BUILD_NAME = "${env.JOB_NAME.replace('/', '-').replace('%2F', '-')}-${env.BUILD_NUMBER}"
+
+        // DEMO-ONLY knobs (see tests/conftest.py): simulate realistic test
+        // durations so a 58-test suite feels like a real CI run instead of
+        // finishing in 0.1s, and so Predictive Test Selection has something
+        // real to save time on. Tune these numbers directly if the live
+        // pacing feels off in rehearsal. Set both to 0 to disable entirely.
+        DEMO_TEST_DELAY_SECONDS = "0.35"
+        DEMO_SLOW_TEST_EXTRA_SECONDS = "2.5"
     }
 
     stages {
