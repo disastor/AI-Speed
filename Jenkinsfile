@@ -65,7 +65,7 @@ spec:
         // instead of asking the room to trust the subset on faith. When
         // "false" (default), feature branches genuinely run only the
         // subset for the literal wall-clock speed demonstration instead.
-        SMART_TESTS_OBSERVATION_MODE = "true"
+        SMART_TESTS_OBSERVATION_MODE = "true"  // see note below — parked pending CloudBees support
     }
 
     stages {
@@ -165,16 +165,20 @@ spec:
                         # run, without running it.
                         pytest --collect-only -q tests/ > test_list.txt
 
+                        # Pipe that list in to get back a subset.
+                        # NOTE: --observation was rejected when placed AFTER
+                        # "pytest" ("No such option '--observation' for
+                        # 'pytest' command") — it appears to be a HIGH-LEVEL
+                        # option per CloudBees docs syntax:
+                        #   smart-tests subset <HIGH-LEVEL OPTS> <RUNNER> <RUNNER OPTS>
+                        # so this attempt places it BEFORE "pytest" instead.
+                        # UNVERIFIED — first real test of this ordering.
                         if [ "${SMART_TESTS_OBSERVATION_MODE}" = "true" ]; then
-                            # Pass --observation here too (in addition to
-                            # record session) since docs are ambiguous about
-                            # whether the session-level flag alone changes
-                            # subset's own output size in a split
-                            # record-session/subset pipeline like this one.
-                            cat test_list.txt | smart-tests subset pytest \
+                            cat test_list.txt | smart-tests subset \
                                 --session "${SESSION}" \
                                 --confidence 90% \
-                                --observation > subset.txt
+                                --observation \
+                                pytest > subset.txt
                         else
                             cat test_list.txt | smart-tests subset pytest \
                                 --session "${SESSION}" \
