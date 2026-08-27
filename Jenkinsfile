@@ -56,16 +56,6 @@ spec:
         // pacing feels off in rehearsal. Set both to 0 to disable entirely.
         DEMO_TEST_DELAY_SECONDS = "0.35"
         DEMO_SLOW_TEST_EXTRA_SECONDS = "2.5"
-
-        // Toggle for Smart Tests observation mode. When "true", the full
-        // suite always runs (observation mode requires this) and the
-        // session is tagged so Smart Tests can retroactively prove whether
-        // the subset it would have picked actually would have caught every
-        // failure, and how much time it would have saved — real evidence
-        // instead of asking the room to trust the subset on faith. When
-        // "false" (default), feature branches genuinely run only the
-        // subset for the literal wall-clock speed demonstration instead.
-        SMART_TESTS_OBSERVATION_MODE = "true"  // see note below — parked pending CloudBees support
     }
 
     stages {
@@ -138,16 +128,9 @@ spec:
                             --build "${BUILD_NAME}" \
                             --source repo=.
 
-                        if [ "${SMART_TESTS_OBSERVATION_MODE}" = "true" ]; then
-                            smart-tests record session \
-                                --build "${BUILD_NAME}" \
-                                --test-suite "pytest-suite" \
-                                --observation > .smart_tests_session.txt
-                        else
-                            smart-tests record session \
-                                --build "${BUILD_NAME}" \
-                                --test-suite "pytest-suite" > .smart_tests_session.txt
-                        fi
+                        smart-tests record session \
+                            --build "${BUILD_NAME}" \
+                            --test-suite "pytest-suite" > .smart_tests_session.txt
                     '''
                 }
             }
@@ -166,24 +149,13 @@ spec:
                         pytest --collect-only -q tests/ > test_list.txt
 
                         # Pipe that list in to get back a subset.
-                        # NOTE: --observation was rejected when placed AFTER
-                        # "pytest" ("No such option '--observation' for
-                        # 'pytest' command") — it appears to be a HIGH-LEVEL
-                        # option per CloudBees docs syntax:
-                        #   smart-tests subset <HIGH-LEVEL OPTS> <RUNNER> <RUNNER OPTS>
-                        # so this attempt places it BEFORE "pytest" instead.
-                        # UNVERIFIED — first real test of this ordering.
-                        if [ "${SMART_TESTS_OBSERVATION_MODE}" = "true" ]; then
-                            cat test_list.txt | smart-tests subset \
-                                --session "${SESSION}" \
-                                --confidence 90% \
-                                --observation \
-                                pytest > subset.txt
-                        else
-                            cat test_list.txt | smart-tests subset pytest \
-                                --session "${SESSION}" \
-                                --confidence 90% > subset.txt
-                        fi
+                        # (Observation mode was tried and abandoned here —
+                        # CloudBees CLI v2.12.5 rejects --observation on
+                        # `smart-tests subset` outright, contradicting the
+                        # docs. Reported to CloudBees support.)
+                        cat test_list.txt | smart-tests subset pytest \
+                            --session "${SESSION}" \
+                            --confidence 90% > subset.txt
 
                         echo "Selected subset:"
                         cat subset.txt
@@ -199,10 +171,7 @@ spec:
                         . .venv/bin/activate
                         SESSION=$(cat .smart_tests_session.txt)
 
-                        if [ "${SMART_TESTS_OBSERVATION_MODE}" = "true" ]; then
-                            echo "Observation mode — running full suite so Smart Tests can score the subset against reality."
-                            python3 -m pytest tests/ --junit-xml=junit.xml || true
-                        elif [ "${BRANCH_NAME}" = "nightly" ]; then
+                        if [ "${BRANCH_NAME}" = "nightly" ]; then
                             echo "Nightly build — running full suite."
                             python3 -m pytest tests/ --junit-xml=junit.xml || true
                         else
