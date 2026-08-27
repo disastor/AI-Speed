@@ -31,6 +31,7 @@ def test_place_order_uses_configured_timeout():
     assert result["timeout_used"] == 5
 
 
+@pytest.mark.slow
 def test_place_order_uses_configured_retries():
     result = orders.place_order(_items())
     assert result["retries_allowed"] == 3
