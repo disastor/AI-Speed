@@ -54,8 +54,8 @@ spec:
         // finishing in 0.1s, and so Predictive Test Selection has something
         // real to save time on. Tune these numbers directly if the live
         // pacing feels off in rehearsal. Set both to 0 to disable entirely.
-        DEMO_TEST_DELAY_SECONDS = "0.35"
-        DEMO_SLOW_TEST_EXTRA_SECONDS = "2.5"
+        DEMO_TEST_DELAY_SECONDS = "3.35"
+        DEMO_SLOW_TEST_EXTRA_SECONDS = "12.5"
     }
 
     stages {
